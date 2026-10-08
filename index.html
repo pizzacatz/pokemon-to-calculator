@@ -1,0 +1,92 @@
+<html>
+<head><title>vgc calc</title></head>
+<body>
+<table>
+<tr><td>players</td><td><input id="players" size="8"></td></tr>
+<tr><td>swiss rounds</td><td><input id="swiss" size="8"></td></tr>
+<tr><td>top cut rounds</td><td><input id="top" size="8"></td></tr>
+<tr><td>bo1 time</td><td><input id="bo1" size="8" readonly></td></tr>
+<tr><td>bo3 time</td><td><input id="bo3" size="8" readonly></td></tr>
+<tr><td>mins per game</td><td><input id="mins" size="8"></td></tr>
+<tr><td>judge compensation per entry</td><td><input id="ppp" size="8"></td></tr>
+<tr><td>total payout</td><td><input id="total" size="8"></td></tr>
+<tr><td>pay/hr bo1</td><td><input id="rate1" size="8"></td></tr>
+<tr><td>pay/hr bo3</td><td><input id="rate3" size="8"></td></tr>
+<tr><td>pot contribution per entry</td><td><input id="pot" size="8"></td></tr>
+<tr><td>house cut</td><td><input id="house" size="8"></td></tr>
+<tr><td>house total cut</td><td><input id="thouse" size="8"></td></tr>
+<tr><td>entry cost</td><td><input id="entry" size="8"></td></tr>
+<tr><td>total pot</td><td><input id="tpot" size="8"></td></tr>
+<tr><td>50% pot (1st place)</td><td><input id="p1" size="8"></td></tr>
+<tr><td>25% pot (2nd place)</td><td><input id="p2" size="8"></td></tr>
+<tr><td>12.5% pot (3rd/4th place)</td><td><input id="p3" size="8"></td></tr>
+</table>
+<br>
+working backwards changes: <input type="radio" name="s" id="byppp" checked>per entry amount <input type="radio" name="s">players
+<script>
+// min, max, swiss, top cut
+var B = [[4,7,3,0],[8,8,3,1],[9,16,4,2],[17,32,5,3],[33,64,6,3],[65,128,7,3],[129,226,8,4]];
+var players = 32, ppp = 5, mins = 17, pot = 0, house = 0;
+
+function $(id) { return document.getElementById(id); }
+function find(p) { var b; for (var i in B) if (p >= B[i][0]) b = B[i]; return b; }
+function h1(b) { return (b[2] + 3*b[3]) * mins / 60; }
+function h3(b) { return (b[2] + b[3]) * 3 * mins / 60; }
+function hm(h) { var m = Math.round(h*60); return Math.floor(m/60) + ":" + ("0" + m%60).slice(-2); }
+function r2(v) { return isNaN(v) ? "ERROR" : Math.round(v*100) / 100; }
+
+function update(skip) {
+  var b = find(players), t = players * ppp, tp = players * pot;
+  var v = {players: players, ppp: r2(ppp), mins: mins, pot: r2(pot), house: r2(house), thouse: r2(players * house), entry: r2(ppp + pot + house),
+           tpot: r2(tp), p1: r2(tp * .5), p2: r2(tp * .25), p3: r2(tp * .125)};
+  if (b) { v.swiss = b[2]; v.top = b[3]; v.bo1 = hm(h1(b)); v.bo3 = hm(h3(b)); v.total = r2(t); v.rate1 = r2(t/h1(b)); v.rate3 = r2(t/h3(b)); }
+  else { var na = isNaN(players) ? "ERROR" : "N/A"; v.swiss = v.top = v.bo1 = v.bo3 = v.total = v.rate1 = v.rate3 = na; if (isNaN(players)) v.players = na; }
+  for (var k in v) if (k != skip) $(k).value = v[k];
+}
+
+function solve(need) {
+  if ($("byppp").checked) { var b = find(players); if (b) ppp = need(b) / players; return; }
+  for (var i in B) {
+    var p = Math.round(need(B[i]) / ppp);
+    if (p >= B[i][0] && (p <= B[i][1] || i == B.length-1)) { players = p; return; }
+  }
+  players = NaN;
+}
+
+// pot boxes: set the total pot to tp
+function potTo(tp) {
+  if ($("byppp").checked) pot = tp / players;
+  else players = pot > 0 ? Math.round(tp / pot) : NaN;
+}
+
+function rounds(c, v) {
+  for (var i in B) if (B[i][c] == v) { players = B[i][1]; return; }
+  players = NaN;
+}
+
+var f = {
+  players: function (v) { players = Math.round(v); },
+  ppp:     function (v) { ppp = v; },
+  mins:    function (v) { if (v > 0) mins = v; },
+  swiss:   function (v) { rounds(2, v); },
+  top:     function (v) { rounds(3, v); },
+  total:   function (v) { solve(function () { return v; }); },
+  rate1:   function (v) { solve(function (b) { return v * h1(b); }); },
+  rate3:   function (v) { solve(function (b) { return v * h3(b); }); },
+  thouse:  function (v) { if ($("byppp").checked) house = v / players; else players = house > 0 ? Math.round(v / house) : NaN; },
+  pot:     function (v) { pot = v; },
+  house:   function (v) { house = v; },
+  entry:   function (v) { pot = v - ppp - house; if (pot < 0) pot = NaN; },
+  tpot:    function (v) { potTo(v); },
+  p1:      function (v) { potTo(v / .5); },
+  p2:      function (v) { potTo(v / .25); },
+  p3:      function (v) { potTo(v / .125); }
+};
+for (var k in f) $(k).oninput = function () {
+  var v = parseFloat(this.value);
+  if (!isNaN(v)) { f[this.id](v); update(this.id); }
+};
+update();
+</script>
+</body>
+</html>
